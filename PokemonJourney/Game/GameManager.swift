@@ -5,99 +5,98 @@ final class GameManager {
     static let shared = GameManager()
     private init() { load() }
 
-    private(set) var state: GameState = .initial
-
-    // MARK: - Persistence
+    private(set) var state: GameState = GameState()
 
     func load() {
         state = GameStorage.load()
-        // Auto-complete any journey that ended while app was closed
         if let journey = state.journey, journey.isComplete {
-            let location = ALL_LOCATIONS.first { $0.id == journey.locationId }
-            completeJourney(location: location)
+            completeJourney(location: ALL_LOCATIONS.first { $0.id == journey.locationId })
         }
     }
 
-    private func save() {
-        GameStorage.save(state)
-    }
+    private func save() { GameStorage.save(state) }
 
-    // MARK: - Actions
+    // MARK: - Pack / Unpack
 
     func packItem(_ itemId: String) {
-        guard state.inventory[itemId] > 0 else { return }
+        guard state.inventory[itemId] > 0, !state.packed.isFull else { return }
         state.inventory[itemId] -= 1
-        state.packed[itemId] += 1
+        state.packed.pack(itemId)
         save()
     }
 
     func unpackItem(_ itemId: String) {
-        guard state.packed[itemId] > 0 else { return }
-        state.packed[itemId] -= 1
+        guard state.packed.contains(itemId) else { return }
+        state.packed.unpack(itemId)
         state.inventory[itemId] += 1
         save()
     }
 
+    // MARK: - Journey
+
     func startJourney(locationId: String) {
-        guard state.pikachu.isHome,
-              state.packed.totalCount > 0,
+        guard state.journey == nil,
               let location = ALL_LOCATIONS.first(where: { $0.id == locationId }) else { return }
 
         let now = Date()
-        let duration = TimeInterval(location.durationMinutes * 60)
+        var duration = TimeInterval(location.durationMinutes * 60)
+        if state.packed.contains("compass") { duration *= 0.9 }
 
         state.journey = JourneyState(
             locationId: locationId,
             startTime: now,
             endTime: now.addingTimeInterval(duration),
-            packed: state.packed
+            packedItems: state.packed.items
         )
         state.packed = PackedItems()
-        state.pikachu.isHome = false
-        state.pikachu.mood = .excited
+        state.sparky.mood = .excited
         save()
     }
 
     func completeJourney(location: Location?) {
-        guard let location else { return }
+        guard let location = location else {
+            state.journey = nil
+            save()
+            return
+        }
 
-        let rewards = generateRewards(for: location)
-
-        // Add rewards to inventory
-        state.inventory.oran += rewards.oran
-        state.inventory.pecha += rewards.pecha
-        state.inventory.sitrus += rewards.sitrus
+        let rewards = generateRewards(for: location, packed: state.journey?.packedItems ?? [])
+        state.inventory[rewards.oran > 0 ? "oran" : "sitrus"] += 0  // no-op, rewards go to postcard
         state.coins += rewards.coins
 
-        // Add postcard
-        let messages = POSTCARD_MESSAGES[location.id] ?? ["旅途愉快！"]
-        let message = messages.randomElement() ?? "皮卡丘带着快乐回来了！"
-        let postcard = Postcard(locationId: location.id, message: message, rewards: rewards)
-        state.postcards.insert(postcard, at: 0)
+        // Return packed items
+        if let packed = state.journey?.packedItems {
+            for itemId in packed { state.inventory[itemId] += 1 }
+        }
 
-        // Update Pikachu
-        state.pikachu.isHome = true
-        state.pikachu.mood = .happy
-        state.pikachu.totalJourneys += 1
-        state.pikachu.happiness = min(100, state.pikachu.happiness + 10)
+        // Add postcard (chance-based)
+        if Double.random(in: 0...1) < location.postcardChance {
+            let messages = POSTCARD_MESSAGES[location.id] ?? ["旅途愉快！"]
+            let message = messages.randomElement() ?? "Sparky带着快乐回来了！"
+            let card = Postcard(id: UUID(), locationId: location.id,
+                                message: message, date: Date(), rewards: rewards)
+            state.postcards.insert(card, at: 0)
+        }
+
+        state.sparky.mood = .happy
+        state.sparky.totalJourneys += 1
         state.journey = nil
         save()
     }
 
     // MARK: - Helpers
 
-    private func generateRewards(for location: Location) -> PostcardRewards {
-        var oran = 0, pecha = 0, sitrus = 0
-        for (berry, range) in location.rewardBerries {
-            let count = Int.random(in: range)
-            switch berry {
-            case "oran": oran = count
-            case "pecha": pecha = count
-            case "sitrus": sitrus = count
-            default: break
-            }
+    private func generateRewards(for location: Location, packed: [String]) -> PostcardRewards {
+        var rewards = PostcardRewards()
+        rewards.coins = Int.random(in: (location.rewardCoins / 2)...location.rewardCoins)
+        if packed.contains("hat")    { rewards.coins = Int(Double(rewards.coins) * 1.5) }
+        rewards.oran   = Int.random(in: 0...2)
+        rewards.pecha  = packed.contains("pecha")  ? Int.random(in: 0...2) : 0
+        rewards.sitrus = packed.contains("sitrus") ? (Bool.random() ? 1 : 0) : 0
+        if packed.contains("clover") {
+            rewards.oran   += 1
+            rewards.pecha  = max(rewards.pecha, 1)
         }
-        let coins = Int.random(in: location.rewardCoins)
-        return PostcardRewards(oran: oran, pecha: pecha, sitrus: sitrus, coins: coins)
+        return rewards
     }
 }

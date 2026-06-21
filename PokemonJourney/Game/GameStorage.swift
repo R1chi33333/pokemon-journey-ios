@@ -12,7 +12,7 @@ enum GameStorage {
         guard
             let data = UserDefaults.standard.data(forKey: key),
             let state = try? JSONDecoder().decode(GameState.self, from: data)
-        else { return .initial }
+        else { return GameState() }
         return state
     }
 

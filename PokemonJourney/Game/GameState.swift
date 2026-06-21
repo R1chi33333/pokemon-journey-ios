@@ -1,115 +1,105 @@
 import Foundation
+import UIKit
 
-// MARK: - Models
+// MARK: - Enums
 
-struct GameState: Codable {
-    var pikachu: PikachuState
-    var journey: JourneyState?
-    var inventory: Inventory
-    var packed: PackedItems
-    var postcards: [Postcard]
-    var coins: Int
-
-    static let initial = GameState(
-        pikachu: PikachuState(isHome: true, mood: .happy, totalJourneys: 0, happiness: 80),
-        journey: nil,
-        inventory: Inventory(oran: 5, pecha: 3, sitrus: 2),
-        packed: PackedItems(),
-        postcards: [],
-        coins: 20
-    )
-}
-
-struct PikachuState: Codable {
-    var isHome: Bool
-    var mood: PikachuMood
-    var totalJourneys: Int
-    var happiness: Int
-}
-
-enum PikachuMood: String, Codable {
-    case happy, excited, sleepy, curious, ready
+enum SparkyMood: String, Codable {
+    case excited, happy, normal, tired, lonely
 
     var text: String {
         switch self {
-        case .happy:   return "皮卡丘很开心！"
-        case .excited: return "皮卡丘超兴奋！⚡"
-        case .sleepy:  return "皮卡丘有点困..."
-        case .curious: return "皮卡丘在想什么呢..."
-        case .ready:   return "皮卡丘准备出发了！"
+        case .excited: return "好开心！出发冒险！⚡"
+        case .happy:   return "我回来啦！好好玩~"
+        case .normal:  return "有什么想去的地方吗？"
+        case .tired:   return "有点累了...想睡觉"
+        case .lonely:  return "好久没有出去了..."
+        }
+    }
+
+    var idleSprite: String {
+        switch self {
+        case .excited: return "sparky_happy"
+        case .happy:   return "sparky_happy"
+        case .normal:  return "sparky_idle_0"
+        case .tired:   return "sparky_sleep_0"
+        case .lonely:  return "sparky_idle_2"
         }
     }
 }
 
-struct JourneyState: Codable {
-    let locationId: String
-    let startTime: Date
-    let endTime: Date
-    let packed: PackedItems
+// MARK: - Items
 
-    var isComplete: Bool { Date() >= endTime }
-
-    var progress: Double {
-        let total = endTime.timeIntervalSince(startTime)
-        let elapsed = Date().timeIntervalSince(startTime)
-        return max(0, min(1, elapsed / total))
-    }
-
-    var timeRemaining: TimeInterval {
-        max(0, endTime.timeIntervalSince(Date()))
-    }
+struct ItemDef {
+    let id: String
+    let nameZH: String
+    let iconName: String
+    let description: String
 }
 
-struct Inventory: Codable {
-    var oran: Int
-    var pecha: Int
-    var sitrus: Int
+let ALL_ITEMS: [ItemDef] = [
+    ItemDef(id:"oran",     nameZH:"奥兰果", iconName:"item_oran",      description:"Sparky最喜欢的浆果"),
+    ItemDef(id:"pecha",    nameZH:"蜜桃果", iconName:"item_pecha",     description:"让Sparky心情好"),
+    ItemDef(id:"sitrus",   nameZH:"吉利果", iconName:"item_sitrus",    description:"恢复活力"),
+    ItemDef(id:"umbrella", nameZH:"雨伞",   iconName:"item_umbrella",  description:"下雨天保护Sparky"),
+    ItemDef(id:"hat",      nameZH:"帽子",   iconName:"item_hat",       description:"增加金币奖励"),
+    ItemDef(id:"map",      nameZH:"地图",   iconName:"item_map",       description:"发现更多地点"),
+    ItemDef(id:"compass",  nameZH:"指南针", iconName:"item_compass",   description:"缩短旅行时间10%"),
+    ItemDef(id:"clover",   nameZH:"幸运草", iconName:"item_clover",    description:"提高浆果奖励"),
+]
 
-    subscript(id: String) -> Int {
-        get {
-            switch id {
-            case "oran": return oran
-            case "pecha": return pecha
-            case "sitrus": return sitrus
-            default: return 0
-            }
-        }
-        set {
-            switch id {
-            case "oran": oran = newValue
-            case "pecha": pecha = newValue
-            case "sitrus": sitrus = newValue
-            default: break
-            }
-        }
-    }
+// MARK: - Locations
+
+struct Location: Codable {
+    let id: String
+    let nameZH: String
+    let emoji: String
+    let description: String
+    let durationMinutes: Double
+    let rewardCoins: Int
+    let postcardChance: Double
+    let skyColor: String
+    let groundColor: String
+    let tileTheme: String
 }
 
-struct PackedItems: Codable {
+let ALL_LOCATIONS: [Location] = [
+    Location(id:"viridian", nameZH:"常磐森林", emoji:"🌲",
+             description:"宁静的绿色森林，满地橡果",
+             durationMinutes:3,   rewardCoins:8,  postcardChance:0.75,
+             skyColor:"#78C8F8", groundColor:"#48A830", tileTheme:"forest"),
+    Location(id:"cerulean", nameZH:"华蓝海岬", emoji:"🌊",
+             description:"蔚蓝的海岸，浪花扑来",
+             durationMinutes:10,  rewardCoins:15, postcardChance:0.65,
+             skyColor:"#A0D8F8", groundColor:"#E8D090", tileTheme:"beach"),
+    Location(id:"mt_moon",  nameZH:"月亮山",   emoji:"🌙",
+             description:"神秘的洞穴，水晶闪闪发光",
+             durationMinutes:20,  rewardCoins:25, postcardChance:0.55,
+             skyColor:"#303050", groundColor:"#605850", tileTheme:"cave"),
+    Location(id:"cherry",   nameZH:"樱花谷",   emoji:"🌸",
+             description:"粉色花瓣漫天飞舞",
+             durationMinutes:60,  rewardCoins:40, postcardChance:0.50,
+             skyColor:"#F8D8E8", groundColor:"#90C870", tileTheme:"forest"),
+    Location(id:"snowpeak", nameZH:"雪白峰",   emoji:"🏔",
+             description:"山顶积雪，能看到整个世界",
+             durationMinutes:120, rewardCoins:60, postcardChance:0.40,
+             skyColor:"#C8DCF8", groundColor:"#E8F0FF", tileTheme:"snow"),
+]
+
+let POSTCARD_MESSAGES: [String: [String]] = [
+    "viridian": ["在森林里找到了好多橡果！\n松鼠们都来抢~","树林里好凉快，睡了一个午觉！","迷路了一会儿，但风景太美了！"],
+    "cerulean": ["海浪好大！脚趾头都湿了~","捡到了一个漂亮的贝壳！","夕阳把大海染成了金色..."],
+    "mt_moon":  ["洞穴里有发光的水晶！","遇到一只胆小的超音蝠！","找到了一块神秘的陨石！"],
+    "cherry":   ["花瓣像雪一样飘落...","树下野餐，好幸福！"],
+    "snowpeak": ["山顶好冷！但星空真的好美！","踩着雪发出嘎吱声，太有趣了！"],
+]
+
+// MARK: - Data Models
+
+struct PostcardRewards: Codable {
+    var coins: Int = 0
     var oran: Int = 0
     var pecha: Int = 0
     var sitrus: Int = 0
-
-    var totalCount: Int { oran + pecha + sitrus }
-
-    subscript(id: String) -> Int {
-        get {
-            switch id {
-            case "oran": return oran
-            case "pecha": return pecha
-            case "sitrus": return sitrus
-            default: return 0
-            }
-        }
-        set {
-            switch id {
-            case "oran": oran = newValue
-            case "pecha": pecha = newValue
-            case "sitrus": sitrus = newValue
-            default: break
-            }
-        }
-    }
 }
 
 struct Postcard: Codable, Identifiable {
@@ -118,102 +108,63 @@ struct Postcard: Codable, Identifiable {
     let message: String
     let date: Date
     let rewards: PostcardRewards
+}
 
-    init(locationId: String, message: String, date: Date = Date(), rewards: PostcardRewards) {
-        self.id = UUID()
-        self.locationId = locationId
-        self.message = message
-        self.date = date
-        self.rewards = rewards
+struct JourneyState: Codable {
+    var locationId: String
+    var startTime: Date
+    var endTime: Date
+    var packedItems: [String]
+
+    var isComplete: Bool { Date() >= endTime }
+
+    var progress: Double {
+        let total = endTime.timeIntervalSince(startTime)
+        let elapsed = Date().timeIntervalSince(startTime)
+        return min(1.0, max(0.0, elapsed / total))
+    }
+
+    var timeRemaining: TimeInterval { max(0, endTime.timeIntervalSinceNow) }
+
+    var formattedTimeRemaining: String {
+        let t = Int(timeRemaining)
+        let h = t / 3600, m = (t % 3600) / 60, s = t % 60
+        if h > 0 { return String(format: "%d时%02d分", h, m) }
+        if m > 0 { return String(format: "%d分%02d秒", m, s) }
+        return String(format: "%d秒", s)
     }
 }
 
-struct PostcardRewards: Codable {
-    var oran: Int
-    var pecha: Int
-    var sitrus: Int
-    var coins: Int
+struct Inventory: Codable {
+    var items: [String: Int] = [
+        "oran":3, "pecha":2, "sitrus":1,
+        "umbrella":1, "hat":0, "map":0, "compass":0, "clover":0,
+    ]
+    subscript(_ id: String) -> Int {
+        get { items[id] ?? 0 }
+        set { items[id] = newValue }
+    }
 }
 
-// MARK: - Static Game Data
-
-struct Location {
-    let id: String
-    let nameZH: String
-    let nameJP: String
-    let emoji: String
-    let description: String
-    let durationMinutes: Int
-    let rewardBerries: [String: ClosedRange<Int>]
-    let rewardCoins: ClosedRange<Int>
-    let postcardChance: Double
-    let wallColor: String
-    let groundColor: String
-    let skyColor: String
+struct PackedItems: Codable {
+    var items: [String] = []
+    let maxSlots: Int = 3
+    var isFull: Bool { items.count >= maxSlots }
+    mutating func pack(_ id: String) { if !items.contains(id) && !isFull { items.append(id) } }
+    mutating func unpack(_ id: String) { items.removeAll { $0 == id } }
+    func contains(_ id: String) -> Bool { items.contains(id) }
 }
 
-let ALL_LOCATIONS: [Location] = [
-    Location(
-        id: "viridian_forest",
-        nameZH: "常磐森林",
-        nameJP: "トキワの森",
-        emoji: "🌲",
-        description: "虫虫宝可梦们的乐园，皮卡丘最爱的地方！",
-        durationMinutes: 3,
-        rewardBerries: ["oran": 1...3, "pecha": 0...1],
-        rewardCoins: 5...15,
-        postcardChance: 0.9,
-        wallColor: "#78C8F8",
-        groundColor: "#58C838",
-        skyColor: "#389820"
-    ),
-    Location(
-        id: "cerulean_cape",
-        nameZH: "华蓝海岬",
-        nameJP: "ハナダのみさき",
-        emoji: "🌊",
-        description: "碧蓝的大海，浪花中有神秘的宝可梦！",
-        durationMinutes: 10,
-        rewardBerries: ["sitrus": 1...2, "pecha": 0...1],
-        rewardCoins: 10...25,
-        postcardChance: 0.95,
-        wallColor: "#48A8F8",
-        groundColor: "#2870E8",
-        skyColor: "#F0E898"
-    ),
-    Location(
-        id: "mt_moon",
-        nameZH: "月亮山",
-        nameJP: "ふじさん",
-        emoji: "🌙",
-        description: "充满神秘月之石的深邃洞窟",
-        durationMinutes: 20,
-        rewardBerries: ["oran": 2...4, "sitrus": 1...2],
-        rewardCoins: 20...40,
-        postcardChance: 1.0,
-        wallColor: "#181828",
-        groundColor: "#303048",
-        skyColor: "#606080"
-    ),
-]
+struct SparkyState: Codable {
+    var mood: SparkyMood = .normal
+    var totalJourneys: Int = 0
+}
 
-let POSTCARD_MESSAGES: [String: [String]] = [
-    "viridian_forest": [
-        "这里的虫虫宝可梦好可爱！我遇到了独角虫！",
-        "森林里好凉快，我在树荫下睡了一觉~",
-        "捡到了一颗发光的石头，给你带回来了！",
-        "在这里遇到了比雕！它盘旋在高空好帅！",
-    ],
-    "cerulean_cape": [
-        "海浪好好听，我在沙滩上睡着了...",
-        "看到了鲤鱼王在跳水！好壮观！",
-        "海风凉凉的，我的毛发都蓬起来了！",
-        "捡到了一个漂亮的贝壳，送给你！",
-    ],
-    "mt_moon": [
-        "洞穴里好深好黑，但是月之石在发光！",
-        "遇到了化石，好古老的气息！",
-        "在这里见到了超梦的壁画！好神秘！",
-        "小拨拨一直跟着我，我给它唱了首歌。",
-    ],
-]
+struct GameState: Codable {
+    var sparky: SparkyState = SparkyState()
+    var journey: JourneyState? = nil
+    var inventory: Inventory = Inventory()
+    var packed: PackedItems = PackedItems()
+    var postcards: [Postcard] = []
+    var coins: Int = 0
+}

@@ -4,600 +4,649 @@ import UIKit
 class JourneyScene: SKScene {
 
     private let gm = GameManager.shared
-    private var walkFrame = 0
+    private var sparkyWalker: SKSpriteNode!
+    private var walkFrames: [SKTexture] = []
     private var walkTime: TimeInterval = 0
-    private var pikachuWalker: SKSpriteNode!
+    private var walkFrame = 0
+
+    private var bgLayers: [SKNode] = []    // parallax layers (far→near)
+    private var bgSpeeds: [CGFloat] = []
+
     private var timerLabel: SKLabelNode!
     private var progressFill: SKSpriteNode!
     private var progressW: CGFloat = 0
+    private var returnPanel: SKNode?
     private var didReturn = false
 
     private var tabBarH: CGFloat { 72 }
-    private var skyH: CGFloat { size.height * 0.38 }
-    private var groundY: CGFloat { size.height - skyH }
+    private var skyH: CGFloat { size.height * 0.42 }
+
+    // MARK: - Lifecycle
 
     override func didMove(to view: SKView) {
-        backgroundColor = UIColor(hex: "#1A1A2E")
         anchorPoint = .zero
+        backgroundColor = UIColor(hex: "#1A1A2E")
 
-        guard let journey = gm.state.journey else {
-            buildNoJourneyUI()
-            return
-        }
-
-        let location = ALL_LOCATIONS.first { $0.id == journey.locationId }
-        buildBackground(location: location)
-        buildWalker()
+        let location = ALL_LOCATIONS.first { $0.id == (gm.state.journey?.locationId ?? "") }
+        buildBackground(for: location)
+        buildSparkyWalker()
         buildUI(location: location)
-        buildTabBar()
+
+        if gm.state.journey == nil {
+            buildNoJourneyState()
+        }
     }
 
     override func update(_ currentTime: TimeInterval) {
         guard let journey = gm.state.journey else { return }
 
-        // Walk animation frames
-        walkTime += 1.0 / 60.0
-        if walkTime >= 0.18 {
+        // Walk animation
+        walkTime += 1.0/60.0
+        if walkTime > 0.14 {
             walkTime = 0
-            walkFrame = (walkFrame + 1) % 2
-            let art = walkFrame == 0 ? PikachuSprites.walkA : PikachuSprites.walkB
-            let tex = PixelArtRenderer.makeTexture(art: art, palette: Palettes.pikachu, pixelSize: 5)
-            tex.filteringMode = .nearest
-            pikachuWalker?.texture = tex
+            walkFrame = (walkFrame + 1) % walkFrames.count
+            sparkyWalker?.texture = walkFrames[walkFrame]
         }
 
-        // Timer update
+        // Parallax scroll
+        for (i, layer) in bgLayers.enumerated() {
+            for child in layer.children {
+                child.position.x -= bgSpeeds[i]
+                // Wrap around when off-screen left
+                if child.position.x < -child.frame.width {
+                    child.position.x += CGFloat(layer.children.count) * child.frame.width
+                }
+            }
+        }
+
+        // Update timer
+        timerLabel?.text = journey.isComplete ? "✅ 旅行完成！" : journey.formattedTimeRemaining
+        progressFill?.xScale = max(0.001, CGFloat(journey.progress))
+
+        // Auto-trigger return
         if journey.isComplete && !didReturn {
             didReturn = true
-            handleReturn()
-            return
-        }
-
-        let remaining = journey.timeRemaining
-        let mins = Int(remaining / 60)
-        let secs = Int(remaining.truncatingRemainder(dividingBy: 60))
-        timerLabel?.text = String(format: "%d:%02d", mins, secs)
-
-        // Progress bar
-        let prog = CGFloat(journey.progress)
-        progressFill?.xScale = max(0.001, prog)
-    }
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let loc = touch.location(in: self)
-        switch atPoint(loc).name {
-        case "btn_home":  goHome()
-        case "btn_album": goAlbum()
-        case "btn_home2": goHome()
-        default: break
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.handleReturn()
+            }
         }
     }
 
-    // MARK: - Build
+    // MARK: - Background
 
-    private func buildBackground(location: Location?) {
-        let skyColor = UIColor(hex: location?.skyColor ?? "#78C8F8")
-        let groundColor = UIColor(hex: location?.groundColor ?? "#58C838")
-        let locId = location?.id ?? "viridian_forest"
+    private func buildBackground(for location: Location?) {
+        let theme = location?.tileTheme ?? "forest"
+        let skyColorHex = location?.skyColor ?? "#78C8F8"
 
-        // Sky
-        let sky = SKShapeNode(rectOf: CGSize(width: size.width, height: skyH))
-        sky.fillColor = skyColor
-        sky.strokeColor = .clear
-        sky.position = CGPoint(x: size.width / 2, y: size.height - skyH / 2)
-        sky.zPosition = 0
-        addChild(sky)
-
-        // Ground
-        let ground = SKShapeNode(rectOf: CGSize(width: size.width, height: size.height - skyH))
-        ground.fillColor = groundColor
-        ground.strokeColor = .clear
-        ground.position = CGPoint(x: size.width / 2, y: (size.height - skyH) / 2)
-        ground.zPosition = 0
-        addChild(ground)
-
-        // Path/road
-        let path = SKShapeNode(rectOf: CGSize(width: size.width, height: 36))
-        path.fillColor = UIColor(hex: "#D4B070")
-        path.strokeColor = .clear
-        path.position = CGPoint(x: size.width / 2, y: groundY + 18)
-        path.zPosition = 1
-        addChild(path)
-
-        // Dashed path marks
-        let dashColor = UIColor(hex: "#C0A050")
-        for i in 0..<8 {
-            let dash = SKShapeNode(rectOf: CGSize(width: 28, height: 4))
-            dash.fillColor = dashColor
-            dash.strokeColor = .clear
-            dash.position = CGPoint(x: CGFloat(i) * 52 + 26, y: groundY + 18)
-            dash.zPosition = 2
-            addChild(dash)
-        }
-
-        // Location-specific scenery
-        addScenery(locId: locId, skyColor: skyColor)
-    }
-
-    private func addScenery(locId: String, skyColor: UIColor) {
-        switch locId {
-        case "viridian_forest":
-            addForestScenery()
-        case "cerulean_cape":
-            addOceanScenery()
-        case "mt_moon":
-            addCaveScenery()
-        default:
-            addForestScenery()
+        switch theme {
+        case "forest": buildForestBG(skyColor: skyColorHex)
+        case "beach":  buildBeachBG(skyColor: skyColorHex)
+        case "cave":   buildCaveBG()
+        case "snow":   buildSnowBG(skyColor: skyColorHex)
+        default:       buildForestBG(skyColor: skyColorHex)
         }
     }
 
-    private func addForestScenery() {
-        // Clouds
-        for (cx, cy) in [(80.0, 0.88), (220.0, 0.92), (310.0, 0.85)] {
-            addCloud(x: cx, yFrac: cy)
-        }
-        // Trees
-        for (tx, scale) in [(30.0, 1.0), (95.0, 1.2), (170.0, 0.9), (250.0, 1.1),
-                             (310.0, 1.0), (360.0, 0.85)] {
-            addTree(x: CGFloat(tx), baseY: groundY + 36, scale: CGFloat(scale))
-        }
-    }
+    private func buildForestBG(skyColor: String) {
+        // Layer 0: Sky (static)
+        let skyNode = SKShapeNode(rectOf: CGSize(width: size.width, height: skyH))
+        skyNode.fillColor = UIColor(hex: skyColor)
+        skyNode.strokeColor = .clear
+        skyNode.position = CGPoint(x: size.width/2, y: size.height - skyH/2)
+        skyNode.zPosition = 0
+        addChild(skyNode)
 
-    private func addOceanScenery() {
         // Sun
-        let sun = SKShapeNode(circleOfRadius: 28)
-        sun.fillColor = UIColor(hex: "#F8D800")
-        sun.strokeColor = .clear
-        sun.position = CGPoint(x: size.width - 60, y: size.height - 56)
+        let sun = SKShapeNode(circleOfRadius: 20)
+        sun.fillColor = UIColor(hex: "#F8E040")
+        sun.strokeColor = UIColor(hex: "#F8C000")
+        sun.lineWidth = 3
+        sun.position = CGPoint(x: size.width * 0.78, y: size.height - 48)
         sun.zPosition = 1
         addChild(sun)
-        // Waves
-        for i in 0..<10 {
-            let wave = SKShapeNode(rectOf: CGSize(width: 34, height: 8), cornerRadius: 4)
-            wave.fillColor = UIColor(hex: "#5898F8")
-            wave.strokeColor = .clear
-            wave.position = CGPoint(x: CGFloat(i) * 40 + 20, y: groundY + CGFloat(i % 2) * 6 + 24)
-            wave.zPosition = 3
-            addChild(wave)
-        }
-        // Lighthouse
-        let tower = SKShapeNode(rectOf: CGSize(width: 18, height: 60))
-        tower.fillColor = .white
-        tower.strokeColor = UIColor(hex: "#C0C0C0")
-        tower.lineWidth = 1
-        tower.position = CGPoint(x: 44, y: size.height - skyH * 0.45)
-        tower.zPosition = 2
-        addChild(tower)
-        let cap = SKShapeNode(rectOf: CGSize(width: 22, height: 14))
-        cap.fillColor = UIColor(hex: "#E83028")
-        cap.strokeColor = .clear
-        cap.position = CGPoint(x: 44, y: size.height - skyH * 0.45 + 37)
-        cap.zPosition = 2
-        addChild(cap)
-    }
 
-    private func addCaveScenery() {
-        // Stars
-        for (sx, sy) in [(40.0, 0.95), (110.0, 0.9), (200.0, 0.93), (280.0, 0.88), (340.0, 0.91)] {
-            let star = SKShapeNode(rectOf: CGSize(width: 3, height: 3))
-            star.fillColor = .white
-            star.strokeColor = .clear
-            star.position = CGPoint(x: CGFloat(sx), y: size.height * CGFloat(sy))
-            star.zPosition = 1
-            addChild(star)
-        }
-        // Moon
-        let moon = SKShapeNode(circleOfRadius: 22)
-        moon.fillColor = UIColor(hex: "#F8F8D0")
-        moon.strokeColor = .clear
-        moon.position = CGPoint(x: size.width - 52, y: size.height - 44)
-        moon.zPosition = 1
-        addChild(moon)
-        let moonShadow = SKShapeNode(circleOfRadius: 18)
-        moonShadow.fillColor = UIColor(hex: "#181828")
-        moonShadow.strokeColor = .clear
-        moonShadow.position = CGPoint(x: size.width - 44, y: size.height - 40)
-        moonShadow.zPosition = 2
-        addChild(moonShadow)
-        // Stalactites
-        for (sx, sh) in [(50.0, 40.0), (130.0, 56.0), (200.0, 34.0), (280.0, 48.0), (340.0, 38.0)] {
-            let stala = SKShapeNode(rectOf: CGSize(width: 14, height: CGFloat(sh)))
-            stala.fillColor = UIColor(hex: "#404060")
-            stala.strokeColor = .clear
-            stala.position = CGPoint(x: CGFloat(sx), y: size.height - CGFloat(sh) / 2)
-            stala.zPosition = 2
-            addChild(stala)
-        }
-        // Glowing crystals
-        for (cx, cc) in [(60.0, "#80F8A0"), (180.0, "#A060F8"), (300.0, "#80F8A0")] {
-            let crystal = SKShapeNode(circleOfRadius: 10)
-            crystal.fillColor = UIColor(hex: cc).withAlphaComponent(0.7)
-            crystal.glowWidth = 4
-            crystal.strokeColor = UIColor(hex: cc)
-            crystal.lineWidth = 1
-            crystal.position = CGPoint(x: CGFloat(cx), y: groundY + 60)
-            crystal.zPosition = 3
-            addChild(crystal)
-        }
-    }
-
-    private func addCloud(x: Double, yFrac: Double) {
-        let cloud = SKNode()
-        for (dx, dy, r) in [(-12.0, 0.0, 10.0), (0.0, 4.0, 14.0), (12.0, 0.0, 10.0)] {
-            let c = SKShapeNode(circleOfRadius: CGFloat(r))
-            c.fillColor = UIColor.white.withAlphaComponent(0.9)
-            c.strokeColor = .clear
-            c.position = CGPoint(x: CGFloat(dx), y: CGFloat(dy))
-            cloud.addChild(c)
-        }
-        cloud.position = CGPoint(x: CGFloat(x), y: size.height * CGFloat(yFrac))
-        cloud.zPosition = 1
-        addChild(cloud)
-    }
-
-    private func addTree(x: CGFloat, baseY: CGFloat, scale: CGFloat) {
-        let trunk = SKShapeNode(rectOf: CGSize(width: 10 * scale, height: 28 * scale))
-        trunk.fillColor = UIColor(hex: "#604018")
-        trunk.strokeColor = .clear
-        trunk.position = CGPoint(x: x, y: baseY + 14 * scale)
-        trunk.zPosition = 2
-        addChild(trunk)
-
-        let leaf = SKShapeNode(circleOfRadius: 18 * scale)
-        leaf.fillColor = UIColor(hex: "#58C038")
-        leaf.strokeColor = UIColor(hex: "#389820")
-        leaf.lineWidth = 1
-        leaf.position = CGPoint(x: x, y: baseY + 36 * scale + 18 * scale)
-        leaf.zPosition = 2
-        addChild(leaf)
-
-        let leaf2 = SKShapeNode(circleOfRadius: 12 * scale)
-        leaf2.fillColor = UIColor(hex: "#78D858")
-        leaf2.strokeColor = .clear
-        leaf2.position = CGPoint(x: x - 6 * scale, y: baseY + 48 * scale + 18 * scale)
-        leaf2.zPosition = 3
-        addChild(leaf2)
-    }
-
-    private func buildWalker() {
-        let tex = PixelArtRenderer.makeTexture(
-            art: PikachuSprites.walkA, palette: Palettes.pikachu, pixelSize: 5)
-        tex.filteringMode = .nearest
-
-        pikachuWalker = SKSpriteNode(texture: tex)
-        pikachuWalker.position = CGPoint(x: -80, y: groundY + 50)
-        pikachuWalker.zPosition = 10
-
-        let walkAction = SKAction.repeatForever(
-            SKAction.sequence([
-                SKAction.moveTo(x: size.width + 80, duration: 4.5),
-                SKAction.moveTo(x: -80, duration: 0),
-            ])
+        // Layer 1: Far trees (slow parallax)
+        let farLayer = buildTileLayer(
+            texName: "tree_top", tileW: 48, tileH: 48,
+            y: size.height - skyH + 12, zPos: 2, speed: 0.4
         )
-        pikachuWalker.run(walkAction)
-        addChild(pikachuWalker)
+        bgLayers.append(farLayer)
+        bgSpeeds.append(0.4)
+
+        // Layer 2: Mid ground (grass tiles)
+        let groundH = size.height - skyH - tabBarH
+        let groundLayer = buildScrollingGround(
+            tileNames: ["grass", "grass_light", "grass"],
+            y: tabBarH, height: groundH
+        )
+        bgLayers.append(groundLayer)
+        bgSpeeds.append(0)   // ground doesn't scroll
+
+        // Layer 3: Near trees (fast parallax)
+        let nearLayer = buildTileLayer(
+            texName: "tree_base", tileW: 64, tileH: 64,
+            y: size.height - skyH - 12, zPos: 4, speed: 1.2
+        )
+        bgLayers.append(nearLayer)
+        bgSpeeds.append(1.2)
+
+        // Path (static center path)
+        buildPath()
     }
+
+    private func buildBeachBG(skyColor: String) {
+        // Sky
+        let skyNode = SKShapeNode(rectOf: CGSize(width: size.width, height: skyH))
+        skyNode.fillColor = UIColor(hex: skyColor)
+        skyNode.strokeColor = .clear
+        skyNode.position = CGPoint(x: size.width/2, y: size.height - skyH/2)
+        skyNode.zPosition = 0
+        addChild(skyNode)
+
+        // Sun
+        let sun = SKShapeNode(circleOfRadius: 22)
+        sun.fillColor = UIColor(hex: "#FFF060")
+        sun.strokeColor = UIColor(hex: "#F8D020")
+        sun.lineWidth = 3
+        sun.position = CGPoint(x: size.width*0.75, y: size.height - 50)
+        sun.zPosition = 1
+        addChild(sun)
+
+        // Water (animated)
+        let waterLayer = buildTileLayer(
+            texName: "water_0", tileW: 48, tileH: 48,
+            y: size.height - skyH, zPos: 2, speed: 0.8
+        )
+        bgLayers.append(waterLayer)
+        bgSpeeds.append(0.8)
+
+        // Sand
+        let sandH = size.height - skyH - tabBarH - 48
+        let sandLayer = buildScrollingGround(
+            tileNames: ["sand"],
+            y: tabBarH, height: sandH + 48
+        )
+        bgLayers.append(sandLayer)
+        bgSpeeds.append(0)
+
+        buildPath()
+    }
+
+    private func buildCaveBG() {
+        // Dark cave
+        let bg = SKShapeNode(rectOf: CGSize(width: size.width, height: size.height))
+        bg.fillColor = UIColor(hex: "#1A1620")
+        bg.strokeColor = .clear
+        bg.position = CGPoint(x: size.width/2, y: size.height/2)
+        bg.zPosition = 0
+        addChild(bg)
+
+        // Wall tiles on top
+        let wallLayer = buildTileLayer(
+            texName: "cave_wall", tileW: 48, tileH: 48,
+            y: size.height - 96, zPos: 2, speed: 0.3
+        )
+        bgLayers.append(wallLayer)
+        bgSpeeds.append(0.3)
+
+        // Crystal layer
+        let crystalLayer = buildTileLayer(
+            texName: "crystal", tileW: 48, tileH: 48,
+            y: size.height - skyH + 24, zPos: 3, speed: 0.6
+        )
+        bgLayers.append(crystalLayer)
+        bgSpeeds.append(0.6)
+
+        // Floor
+        let floorH = size.height - skyH - tabBarH
+        let floorLayer = buildScrollingGround(
+            tileNames: ["cave_floor"],
+            y: tabBarH, height: floorH
+        )
+        bgLayers.append(floorLayer)
+        bgSpeeds.append(0)
+
+        buildPath()
+    }
+
+    private func buildSnowBG(skyColor: String) {
+        let skyNode = SKShapeNode(rectOf: CGSize(width: size.width, height: skyH))
+        skyNode.fillColor = UIColor(hex: skyColor)
+        skyNode.strokeColor = .clear
+        skyNode.position = CGPoint(x: size.width/2, y: size.height - skyH/2)
+        skyNode.zPosition = 0
+        addChild(skyNode)
+
+        // Mountain silhouettes
+        let mtLayer = buildTileLayer(
+            texName: "mountain_bg", tileW: 48, tileH: 48,
+            y: size.height - skyH, zPos: 2, speed: 0.2
+        )
+        bgLayers.append(mtLayer)
+        bgSpeeds.append(0.2)
+
+        let snowLayer = buildScrollingGround(
+            tileNames: ["snow"],
+            y: tabBarH, height: size.height - skyH - tabBarH
+        )
+        bgLayers.append(snowLayer)
+        bgSpeeds.append(0)
+
+        buildPath()
+    }
+
+    private func buildTileLayer(texName: String, tileW: CGFloat, tileH: CGFloat,
+                                 y: CGFloat, zPos: CGFloat, speed: CGFloat) -> SKNode {
+        let layer = SKNode()
+        layer.zPosition = zPos
+        addChild(layer)
+
+        let count = Int(ceil(size.width / tileW)) + 3
+        let tex = nearestTex(texName)
+        for i in 0..<count {
+            let tile = SKSpriteNode(texture: tex, size: CGSize(width: tileW, height: tileH))
+            tile.anchorPoint = CGPoint(x: 0, y: 0)
+            tile.position = CGPoint(x: CGFloat(i) * tileW, y: y)
+            layer.addChild(tile)
+        }
+        return layer
+    }
+
+    private func buildScrollingGround(tileNames: [String], y: CGFloat, height: CGFloat) -> SKNode {
+        let layer = SKNode()
+        layer.zPosition = 3
+        addChild(layer)
+
+        let tileW: CGFloat = 48
+        let tileH: CGFloat = 48
+        let cols = Int(ceil(size.width / tileW)) + 1
+        let rows = Int(ceil(height / tileH)) + 1
+
+        for row in 0..<rows {
+            for col in 0..<cols {
+                let texName = tileNames[(row + col) % tileNames.count]
+                let tile = SKSpriteNode(texture: nearestTex(texName),
+                                        size: CGSize(width: tileW, height: tileH))
+                tile.anchorPoint = CGPoint(x: 0, y: 0)
+                tile.position = CGPoint(x: CGFloat(col)*tileW, y: y + CGFloat(row)*tileH)
+                layer.addChild(tile)
+            }
+        }
+        return layer
+    }
+
+    private func buildPath() {
+        // Dirt path running through center bottom
+        let pathW: CGFloat = 80
+        let pathY = tabBarH
+        let pathH = size.height - skyH - tabBarH + 40
+
+        let pathBg = SKShapeNode(rectOf: CGSize(width: pathW, height: pathH))
+        pathBg.fillColor = UIColor(hex: "#C8A860")
+        pathBg.strokeColor = .clear
+        pathBg.position = CGPoint(x: size.width/2, y: pathY + pathH/2)
+        pathBg.zPosition = 4.5
+        addChild(pathBg)
+
+        // Dashes
+        var dashY = pathY + 16
+        while dashY < pathY + pathH - 16 {
+            let dash = SKShapeNode(rectOf: CGSize(width: 6, height: 14))
+            dash.fillColor = UIColor(hex: "#F0D090")
+            dash.strokeColor = .clear
+            dash.position = CGPoint(x: size.width/2, y: dashY)
+            dash.zPosition = 4.6
+            addChild(dash)
+            dashY += 28
+        }
+    }
+
+    // MARK: - Sparky Walker
+
+    private func buildSparkyWalker() {
+        walkFrames = (0..<6).map { nearestTex("sparky_walk_\($0)") }
+
+        sparkyWalker = SKSpriteNode(texture: walkFrames[0],
+                                    size: CGSize(width: 72, height: 84))
+        let groundY = size.height - skyH
+        sparkyWalker.position = CGPoint(x: size.width * 0.35, y: groundY + 42)
+        sparkyWalker.zPosition = 10
+
+        addChild(sparkyWalker)
+
+        // Shadow
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: 44, height: 8))
+        shadow.fillColor = UIColor.black.withAlphaComponent(0.3)
+        shadow.strokeColor = .clear
+        shadow.position = CGPoint(x: sparkyWalker.position.x, y: groundY + 4)
+        shadow.zPosition = 9
+        addChild(shadow)
+    }
+
+    // MARK: - UI
 
     private func buildUI(location: Location?) {
-        let panelY: CGFloat = tabBarH + 8
-        let panelH: CGFloat = size.height - skyH - groundY + skyH - tabBarH - 16
-        // Adjust: info panel in bottom portion
-        let infoPanelH: CGFloat = min(260, size.height * 0.35)
-        let infoPanelY: CGFloat = tabBarH + 8
+        guard let _ = gm.state.journey else { return }
 
-        let panelBg = SKShapeNode(
-            rectOf: CGSize(width: size.width - 24, height: infoPanelH), cornerRadius: 4)
-        panelBg.fillColor = UIColor(hex: "#F0F8FF")
-        panelBg.strokeColor = UIColor(hex: "#003878")
-        panelBg.lineWidth = 3
-        panelBg.position = CGPoint(x: size.width / 2, y: infoPanelY + infoPanelH / 2)
-        panelBg.zPosition = 20
-        addChild(panelBg)
+        let infoPanelH: CGFloat = 210
+        let infoPanelY = tabBarH + 4
 
-        let titleLbl = SKLabelNode(text: "\(location?.emoji ?? "🌟") \(location?.nameZH ?? "旅行中")")
-        titleLbl.fontName = "Courier-Bold"
-        titleLbl.fontSize = 14
-        titleLbl.fontColor = UIColor(hex: "#003878")
-        titleLbl.position = CGPoint(x: size.width / 2, y: infoPanelY + infoPanelH - 28)
-        titleLbl.zPosition = 21
-        addChild(titleLbl)
+        let panel = SKShapeNode(rectOf: CGSize(width: size.width - 24, height: infoPanelH),
+                                cornerRadius: 10)
+        panel.fillColor = UIColor(hex: "#E8F4FF").withAlphaComponent(0.95)
+        panel.strokeColor = UIColor(hex: "#003878")
+        panel.lineWidth = 3
+        panel.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH/2)
+        panel.zPosition = 20
+        addChild(panel)
 
-        let descLbl = SKLabelNode(text: location?.description ?? "")
-        descLbl.fontName = "Courier"
-        descLbl.fontSize = 9
-        descLbl.fontColor = UIColor(hex: "#505060")
-        descLbl.numberOfLines = 2
-        descLbl.preferredMaxLayoutWidth = size.width - 40
-        descLbl.position = CGPoint(x: size.width / 2, y: infoPanelY + infoPanelH - 52)
-        descLbl.zPosition = 21
-        addChild(descLbl)
+        // Location name
+        let nameLbl = SKLabelNode(text: "\(location?.emoji ?? "🌟")  \(location?.nameZH ?? "旅行中")")
+        nameLbl.fontName = "Courier-Bold"
+        nameLbl.fontSize = 16
+        nameLbl.fontColor = UIColor(hex: "#003878")
+        nameLbl.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH - 36)
+        nameLbl.zPosition = 21
+        addChild(nameLbl)
 
         // Timer
-        let timerRowY = infoPanelY + infoPanelH * 0.55
-        let timerPrompt = SKLabelNode(text: "剩余时间:")
-        timerPrompt.fontName = "Courier-Bold"
-        timerPrompt.fontSize = 10
-        timerPrompt.fontColor = UIColor(hex: "#183888")
-        timerPrompt.horizontalAlignmentMode = .right
-        timerPrompt.position = CGPoint(x: size.width / 2 - 4, y: timerRowY)
-        timerPrompt.zPosition = 21
-        addChild(timerPrompt)
-
-        timerLabel = SKLabelNode(text: "0:00")
+        timerLabel = SKLabelNode(text: gm.state.journey?.formattedTimeRemaining ?? "--")
         timerLabel.fontName = "Courier-Bold"
         timerLabel.fontSize = 22
-        timerLabel.fontColor = UIColor(hex: "#E83030")
-        timerLabel.horizontalAlignmentMode = .left
-        timerLabel.position = CGPoint(x: size.width / 2 + 6, y: timerRowY)
+        timerLabel.fontColor = UIColor(hex: "#003878")
+        timerLabel.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH - 80)
         timerLabel.zPosition = 21
         addChild(timerLabel)
 
-        // Progress bar track
-        let progressBgH: CGFloat = 12
-        let progressBgW = size.width - 48
-        let progressBg = SKShapeNode(
-            rectOf: CGSize(width: progressBgW, height: progressBgH), cornerRadius: 4)
-        progressBg.fillColor = UIColor(hex: "#C8D8E8")
-        progressBg.strokeColor = UIColor(hex: "#A0B8C8")
-        progressBg.lineWidth = 1
-        let progressY = infoPanelY + infoPanelH * 0.32
-        progressBg.position = CGPoint(x: size.width / 2, y: progressY)
-        progressBg.zPosition = 21
-        addChild(progressBg)
+        // Progress bar
+        let barW = size.width - 64
+        let barH: CGFloat = 16
+        let barY = infoPanelY + infoPanelH - 118
 
-        progressW = progressBgW - 4
-        let prog = PixelArtRenderer.self  // just to compile
-        _ = prog.self
+        let barBg = SKSpriteNode(texture: nearestTex("progress_bg"),
+                                  size: CGSize(width: barW, height: barH))
+        barBg.position = CGPoint(x: size.width/2, y: barY)
+        barBg.zPosition = 21
+        addChild(barBg)
+
+        progressW = barW - 4
         let fill = SKSpriteNode(color: UIColor(hex: "#F8D030"),
-                                size: CGSize(width: progressW, height: progressBgH - 4))
+                                size: CGSize(width: progressW, height: barH - 4))
         fill.anchorPoint = CGPoint(x: 0, y: 0.5)
-        fill.position = CGPoint(x: -(progressW / 2), y: 0)
+        fill.position = CGPoint(x: size.width/2 - progressW/2, y: barY)
         fill.xScale = CGFloat(gm.state.journey?.progress ?? 0)
         fill.zPosition = 22
-        progressBg.addChild(fill)
         progressFill = fill
+        addChild(fill)
+
+        // Reward preview
+        if let loc = location {
+            let rewardLbl = SKLabelNode(text: "预计奖励: 💰~\(loc.rewardCoins)  🫐×2")
+            rewardLbl.fontName = "Courier"
+            rewardLbl.fontSize = 10
+            rewardLbl.fontColor = UIColor(hex: "#405070")
+            rewardLbl.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH - 152)
+            rewardLbl.zPosition = 21
+            addChild(rewardLbl)
+        }
 
         // Home button
-        let homeBtn = makeButton(text: "🏠 返回家", color: UIColor(hex: "#205090"),
-                                  btnSize: CGSize(width: 130, height: 36))
-        homeBtn.position = CGPoint(x: size.width / 2, y: infoPanelY + 22)
+        let homeBtn = makeButton(text: "🏠 回家等待", color: UIColor(hex: "#205090"), w: 180, h: 40)
+        homeBtn.position = CGPoint(x: size.width/2, y: infoPanelY + 28)
         homeBtn.zPosition = 21
         homeBtn.name = "btn_home"
-        tagChildNames(homeBtn, name: "btn_home")
+        tagNames(homeBtn, name: "btn_home")
         addChild(homeBtn)
+
+        // Tab bar
+        buildTabBar()
     }
 
-    private func buildNoJourneyUI() {
-        let box = SKShapeNode(rectOf: CGSize(width: size.width - 40, height: 120), cornerRadius: 4)
-        box.fillColor = UIColor(hex: "#F0F8FF")
+    private func buildNoJourneyState() {
+        let box = SKShapeNode(rectOf: CGSize(width: size.width - 40, height: 140), cornerRadius: 10)
+        box.fillColor = UIColor(hex: "#E8F4FF").withAlphaComponent(0.92)
         box.strokeColor = UIColor(hex: "#003878")
         box.lineWidth = 3
-        box.position = CGPoint(x: size.width / 2, y: size.height * 0.6)
-        box.zPosition = 10
+        box.position = CGPoint(x: size.width/2, y: size.height/2)
+        box.zPosition = 20
         addChild(box)
 
-        let lbl = SKLabelNode(text: "皮卡丘在家里！")
-        lbl.fontName = "Courier-Bold"
-        lbl.fontSize = 13
-        lbl.fontColor = UIColor(hex: "#181818")
-        lbl.position = CGPoint(x: 0, y: 14)
-        box.addChild(lbl)
+        let txt = SKLabelNode(text: "⚡ Sparky 还在家里哦")
+        txt.fontName = "Courier-Bold"
+        txt.fontSize = 13
+        txt.fontColor = UIColor(hex: "#003878")
+        txt.position = CGPoint(x: size.width/2, y: size.height/2 + 28)
+        txt.zPosition = 21
+        addChild(txt)
 
-        let sub = SKLabelNode(text: "去准备旅行吧~")
+        let sub = SKLabelNode(text: "回主页整理行囊再出发！")
         sub.fontName = "Courier"
-        sub.fontSize = 10
-        sub.fontColor = UIColor(hex: "#606060")
-        sub.position = CGPoint(x: 0, y: -14)
-        box.addChild(sub)
+        sub.fontSize = 11
+        sub.fontColor = UIColor(hex: "#507090")
+        sub.position = CGPoint(x: size.width/2, y: size.height/2)
+        sub.zPosition = 21
+        addChild(sub)
 
-        let btn = makeButton(text: "🏠 返回家", color: UIColor(hex: "#205090"),
-                              btnSize: CGSize(width: 160, height: 40))
-        btn.position = CGPoint(x: size.width / 2, y: size.height * 0.4)
-        btn.zPosition = 10
-        btn.name = "btn_home2"
-        tagChildNames(btn, name: "btn_home2")
-        addChild(btn)
+        let homeBtn = makeButton(text: "🏠 回主页", color: UIColor(hex: "#205090"), w: 180, h: 44)
+        homeBtn.position = CGPoint(x: size.width/2, y: size.height/2 - 40)
+        homeBtn.zPosition = 21
+        homeBtn.name = "btn_home"
+        tagNames(homeBtn, name: "btn_home")
+        addChild(homeBtn)
 
         buildTabBar()
     }
 
     private func buildTabBar() {
-        let barBg = SKShapeNode(rectOf: CGSize(width: size.width, height: tabBarH))
-        barBg.fillColor = UIColor(hex: "#12122A")
-        barBg.strokeColor = UIColor(hex: "#2D2D4E")
-        barBg.lineWidth = 1
-        barBg.position = CGPoint(x: size.width / 2, y: tabBarH / 2)
-        barBg.zPosition = 30
-        addChild(barBg)
+        let bar = SKShapeNode(rectOf: CGSize(width: size.width, height: tabBarH))
+        bar.fillColor = UIColor(hex: "#0E0E20")
+        bar.strokeColor = UIColor(hex: "#2A2A48")
+        bar.lineWidth = 1
+        bar.position = CGPoint(x: size.width/2, y: tabBarH/2)
+        bar.zPosition = 30
+        addChild(bar)
 
-        addTabItem(emoji: "🏠", label: "家",   x: size.width * 0.2, active: false, name: "btn_home")
-        addTabItem(emoji: "🌟", label: "旅行", x: size.width * 0.5, active: true,  name: nil)
-        addTabItem(emoji: "📮", label: "相册", x: size.width * 0.8, active: false, name: "btn_album")
+        addTab(emoji: "🏠", label: "主页", x: size.width*0.2, active: false, name: "btn_home")
+        addTab(emoji: "🌟", label: "旅行", x: size.width*0.5, active: true,  name: nil)
+        addTab(emoji: "📮", label: "相册", x: size.width*0.8, active: false, name: "btn_album")
     }
 
-    private func addTabItem(emoji: String, label: String, x: CGFloat, active: Bool, name: String?) {
+    private func addTab(emoji: String, label: String, x: CGFloat, active: Bool, name: String?) {
+        if active {
+            let indicator = SKShapeNode(rectOf: CGSize(width: 40, height: 3))
+            indicator.fillColor = UIColor(hex: "#F8D030")
+            indicator.strokeColor = .clear
+            indicator.position = CGPoint(x: x, y: tabBarH - 1.5)
+            indicator.zPosition = 32
+            addChild(indicator)
+        }
         let emj = SKLabelNode(text: emoji)
-        emj.fontSize = 24
-        emj.position = CGPoint(x: x, y: tabBarH * 0.5 + 2)
+        emj.fontSize = 26
+        emj.position = CGPoint(x: x, y: tabBarH*0.52)
         emj.zPosition = 31
         emj.name = name
         addChild(emj)
-
         let lbl = SKLabelNode(text: label)
         lbl.fontName = "Courier-Bold"
-        lbl.fontSize = 8
-        lbl.fontColor = active ? UIColor(hex: "#F8D030") : UIColor(hex: "#707090")
-        lbl.position = CGPoint(x: x, y: tabBarH * 0.12)
+        lbl.fontSize = 9
+        lbl.fontColor = active ? UIColor(hex: "#F8D030") : UIColor(hex: "#606080")
+        lbl.position = CGPoint(x: x, y: 8)
         lbl.zPosition = 31
         lbl.name = name
         addChild(lbl)
-
-        if active {
-            let ind = SKShapeNode(rectOf: CGSize(width: 36, height: 2))
-            ind.fillColor = UIColor(hex: "#F8D030")
-            ind.strokeColor = .clear
-            ind.position = CGPoint(x: x, y: tabBarH - 2)
-            ind.zPosition = 32
-            addChild(ind)
-        }
     }
 
-    // MARK: - Return handling
+    // MARK: - Return Panel
 
     private func handleReturn() {
-        guard let journey = gm.state.journey else { return }
-        let location = ALL_LOCATIONS.first { $0.id == journey.locationId }
-        gm.completeJourney(location: location)
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        showReturnPanel()
-    }
+        guard returnPanel == nil else { return }
 
-    private func showReturnPanel() {
-        let state = gm.state
-        let panel = SKNode()
-        panel.zPosition = 50
+        let loc = ALL_LOCATIONS.first { $0.id == (gm.state.journey?.locationId ?? "") }
+        gm.completeJourney(location: loc)
 
-        let dim = SKShapeNode(rectOf: size)
-        dim.fillColor = UIColor.black.withAlphaComponent(0.7)
-        dim.strokeColor = .clear
-        dim.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        panel.addChild(dim)
+        let panelW = size.width - 24
+        let panelH: CGFloat = 300
+        let panelY = tabBarH + 60
 
-        let box = SKShapeNode(rectOf: CGSize(width: size.width - 32, height: 300), cornerRadius: 4)
-        box.fillColor = UIColor(hex: "#F0F8FF")
-        box.strokeColor = UIColor(hex: "#003878")
-        box.lineWidth = 3
-        box.position = CGPoint(x: size.width / 2, y: size.height / 2)
-        panel.addChild(box)
+        let overlay = SKShapeNode(rect: CGRect(x: 0, y: 0, width: size.width, height: size.height))
+        overlay.fillColor = UIColor.black.withAlphaComponent(0.6)
+        overlay.strokeColor = .clear
+        overlay.zPosition = 50
 
-        let title = SKLabelNode(text: "皮卡丘回来了！⚡")
+        let panel = SKShapeNode(rectOf: CGSize(width: panelW, height: panelH), cornerRadius: 14)
+        panel.fillColor = UIColor(hex: "#F5ECD8")
+        panel.strokeColor = UIColor(hex: "#D4B070")
+        panel.lineWidth = 3
+        panel.position = CGPoint(x: size.width/2, y: panelY + panelH/2)
+        panel.zPosition = 51
+        overlay.addChild(panel)
+
+        // Title
+        let title = SKLabelNode(text: "⚡ Sparky 回来了！")
         title.fontName = "Courier-Bold"
-        title.fontSize = 14
-        title.fontColor = UIColor(hex: "#003878")
-        title.position = CGPoint(x: 0, y: 116)
-        box.addChild(title)
+        title.fontSize = 16
+        title.fontColor = UIColor(hex: "#403820")
+        title.position = CGPoint(x: 0, y: panelH/2 - 36)
+        title.zPosition = 52
+        panel.addChild(title)
 
-        // Pikachu face
-        let pikaTex = PixelArtRenderer.makeTexture(
-            art: PikachuSprites.front, palette: Palettes.pikachu, pixelSize: 4)
-        pikaTex.filteringMode = .nearest
-        let pikaNode = SKSpriteNode(texture: pikaTex)
-        pikaNode.position = CGPoint(x: 0, y: 56)
-        box.addChild(pikaNode)
-        pikaNode.run(SKAction.repeatForever(SKAction.sequence([
-            SKAction.moveBy(x: 0, y: 4, duration: 0.5),
-            SKAction.moveBy(x: 0, y: -4, duration: 0.5),
+        // Happy Sparky
+        let sparkyImg = SKSpriteNode(texture: nearestTex("sparky_happy"),
+                                     size: CGSize(width: 72, height: 90))
+        sparkyImg.position = CGPoint(x: 0, y: panelH/2 - 110)
+        sparkyImg.zPosition = 52
+        panel.addChild(sparkyImg)
+        sparkyImg.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.moveBy(x: 0, y: 6, duration: 0.3),
+            SKAction.moveBy(x: 0, y: -6, duration: 0.3),
         ])))
 
-        // Rewards preview
-        if let last = state.postcards.first {
-            let msg = SKLabelNode(text: "📮 收到新明信片！")
-            msg.fontName = "Courier-Bold"
-            msg.fontSize = 10
-            msg.fontColor = UIColor(hex: "#505060")
-            msg.position = CGPoint(x: 0, y: -12)
-            box.addChild(msg)
+        // Location
+        let locEmoji = loc?.emoji ?? "🌟"
+        let locName  = loc?.nameZH ?? "远方"
+        let locLbl = SKLabelNode(text: "\(locEmoji) 来自 \(locName)")
+        locLbl.fontName = "Courier"
+        locLbl.fontSize = 11
+        locLbl.fontColor = UIColor(hex: "#706050")
+        locLbl.position = CGPoint(x: 0, y: panelH/2 - 172)
+        locLbl.zPosition = 52
+        panel.addChild(locLbl)
 
-            let msgText = SKLabelNode(text: truncate(last.message, to: 18))
-            msgText.fontName = "Courier"
-            msgText.fontSize = 9
-            msgText.fontColor = UIColor(hex: "#707080")
-            msgText.position = CGPoint(x: 0, y: -32)
-            box.addChild(msgText)
+        // Rewards
+        let lastCard = gm.state.postcards.first
+        if let card = lastCard {
+            let rw = card.rewards
+            var parts: [String] = []
+            if rw.coins > 0  { parts.append("💰\(rw.coins)") }
+            if rw.oran > 0   { parts.append("🫐×\(rw.oran)") }
+            if rw.pecha > 0  { parts.append("🍑×\(rw.pecha)") }
+            if rw.sitrus > 0 { parts.append("🍊×\(rw.sitrus)") }
+            let rewardStr = parts.isEmpty ? "平安归来！" : parts.joined(separator: "  ")
+            let rewLbl = SKLabelNode(text: rewardStr)
+            rewLbl.fontName = "Courier-Bold"
+            rewLbl.fontSize = 12
+            rewLbl.fontColor = UIColor(hex: "#805030")
+            rewLbl.position = CGPoint(x: 0, y: panelH/2 - 200)
+            rewLbl.zPosition = 52
+            panel.addChild(rewLbl)
+
+            if !card.message.isEmpty {
+                let msg = String(card.message.prefix(28))
+                let msgLbl = SKLabelNode(text: "\u{201C}\(msg)\u{201D}")
+                msgLbl.fontName = "Courier"
+                msgLbl.fontSize = 9
+                msgLbl.fontColor = UIColor(hex: "#706050")
+                msgLbl.position = CGPoint(x: 0, y: panelH/2 - 222)
+                msgLbl.zPosition = 52
+                panel.addChild(msgLbl)
+            }
         }
 
-        let rewardRow = buildRewardRow(coins: state.coins)
-        rewardRow.position = CGPoint(x: 0, y: -64)
-        box.addChild(rewardRow)
+        // Buttons
+        let homeBtn = makeButton(text: "🏠 回家", color: UIColor(hex: "#205090"), w: 140, h: 44)
+        homeBtn.position = CGPoint(x: -78, y: -(panelH/2 - 36))
+        homeBtn.zPosition = 52
+        homeBtn.name = "btn_home_return"
+        tagNames(homeBtn, name: "btn_home_return")
+        panel.addChild(homeBtn)
 
-        let homeBtn = makeButton(text: "🏠 返回家", color: UIColor(hex: "#205090"),
-                                  btnSize: CGSize(width: 130, height: 36))
-        homeBtn.name = "btn_home"
-        tagChildNames(homeBtn, name: "btn_home")
-        homeBtn.position = CGPoint(x: -72, y: -120)
-        box.addChild(homeBtn)
+        let albumBtn = makeButton(text: "📮 看明信片", color: UIColor(hex: "#406820"), w: 150, h: 44)
+        albumBtn.position = CGPoint(x: 80, y: -(panelH/2 - 36))
+        albumBtn.zPosition = 52
+        albumBtn.name = "btn_album_return"
+        tagNames(albumBtn, name: "btn_album_return")
+        panel.addChild(albumBtn)
 
-        let albumBtn = makeButton(text: "📮 相册", color: UIColor(hex: "#503080"),
-                                   btnSize: CGSize(width: 130, height: 36))
-        albumBtn.name = "btn_album"
-        tagChildNames(albumBtn, name: "btn_album")
-        albumBtn.position = CGPoint(x: 72, y: -120)
-        box.addChild(albumBtn)
-
-        addChild(panel)
+        returnPanel = overlay
+        addChild(overlay)
         panel.setScale(0.7)
         panel.alpha = 0
         panel.run(SKAction.group([
-            SKAction.fadeIn(withDuration: 0.25),
-            SKAction.scale(to: 1.0, duration: 0.25),
+            SKAction.fadeIn(withDuration: 0.3),
+            SKAction.sequence([
+                SKAction.scale(to: 1.08, duration: 0.25),
+                SKAction.scale(to: 0.96, duration: 0.1),
+                SKAction.scale(to: 1.0,  duration: 0.1),
+            ]),
         ]))
     }
 
-    private func buildRewardRow(_ rewards: [String: Int] = [:], coins: Int) -> SKNode {
-        let node = SKNode()
-        let items: [(String, String)] = [("💰", "\(coins)G"), ("📮", "明信片")]
-        for (i, (emoji, label)) in items.enumerated() {
-            let emj = SKLabelNode(text: emoji)
-            emj.fontSize = 22
-            emj.position = CGPoint(x: CGFloat(i - 1) * 70 + 35, y: 6)
-            node.addChild(emj)
-            let lbl = SKLabelNode(text: label)
-            lbl.fontName = "Courier"
-            lbl.fontSize = 9
-            lbl.fontColor = UIColor(hex: "#505060")
-            lbl.position = CGPoint(x: CGFloat(i - 1) * 70 + 35, y: -12)
-            node.addChild(lbl)
+    // MARK: - Touch
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let loc = touches.first?.location(in: self) else { return }
+        switch atPoint(loc).name ?? "" {
+        case "btn_home", "btn_home_return":
+            goHome()
+        case "btn_album", "btn_album_return":
+            goAlbum()
+        default:
+            break
         }
-        return node
     }
 
     // MARK: - Navigation
 
     private func goHome() {
-        let home = HomeScene(size: size)
-        home.scaleMode = scaleMode
-        view?.presentScene(home, transition: SKTransition.push(with: .right, duration: 0.3))
+        let scene = HomeScene(size: size)
+        scene.scaleMode = scaleMode
+        view?.presentScene(scene, transition: SKTransition.push(with: .right, duration: 0.3))
     }
 
     private func goAlbum() {
-        let album = AlbumScene(size: size)
-        album.scaleMode = scaleMode
-        view?.presentScene(album, transition: SKTransition.push(with: .left, duration: 0.3))
+        let scene = AlbumScene(size: size)
+        scene.scaleMode = scaleMode
+        view?.presentScene(scene, transition: SKTransition.push(with: .left, duration: 0.3))
     }
 
     // MARK: - Helpers
 
-    private func makeButton(text: String, color: UIColor, btnSize: CGSize) -> SKNode {
+    private func nearestTex(_ name: String) -> SKTexture {
+        let t = SKTexture(imageNamed: name)
+        t.filteringMode = .nearest
+        return t
+    }
+
+    private func makeButton(text: String, color: UIColor, w: CGFloat, h: CGFloat) -> SKNode {
         let node = SKNode()
-        let shadow = SKShapeNode(rectOf: btnSize)
-        shadow.fillColor = color.withAlphaComponent(0.4)
-        shadow.strokeColor = .clear
-        shadow.position = CGPoint(x: 2, y: -2)
-        node.addChild(shadow)
-        let bg = SKShapeNode(rectOf: btnSize, cornerRadius: 2)
+        let bg = SKShapeNode(rectOf: CGSize(width: w, height: h), cornerRadius: 6)
         bg.fillColor = color
-        bg.strokeColor = color.withAlphaComponent(0.6)
+        bg.strokeColor = color.withAlphaComponent(0.5)
         bg.lineWidth = 2
         node.addChild(bg)
         let lbl = SKLabelNode(text: text)
         lbl.fontName = "Courier-Bold"
-        lbl.fontSize = 11
+        lbl.fontSize = 12
         lbl.fontColor = .white
         lbl.verticalAlignmentMode = .center
         node.addChild(lbl)
         return node
     }
 
-    private func tagChildNames(_ node: SKNode, name: String) {
-        node.children.forEach { child in
+    private func tagNames(_ node: SKNode, name: String) {
+        for child in node.children {
             child.name = name
-            tagChildNames(child, name: name)
+            tagNames(child, name: name)
         }
-    }
-
-    private func truncate(_ s: String, to n: Int) -> String {
-        s.count > n ? String(s.prefix(n)) + "..." : s
     }
 }
