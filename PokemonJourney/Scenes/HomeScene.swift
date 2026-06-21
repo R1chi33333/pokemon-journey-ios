@@ -50,7 +50,7 @@ class HomeScene: SKScene {
     private func buildRoom() {
         let cols = Int(ceil(size.width / tileSize)) + 1
         let wallRows = 5
-        let floorY = size.height - CGFloat(wallRows) * tileSize - tabBarH
+        let floorY = size.height - CGFloat(wallRows) * tileSize
 
         // Wall tiles
         let wallTex = nearestTex("room_wall")
@@ -217,7 +217,7 @@ class HomeScene: SKScene {
 
         // Name / mood
         let nameL = SKLabelNode(text: "⚡ Sparky")
-        nameL.fontName = "Courier-Bold"
+        nameL.fontName = "PingFangSC-Semibold"
         nameL.fontSize = 13
         nameL.fontColor = UIColor(hex: "#F8D030")
         nameL.horizontalAlignmentMode = .left
@@ -226,7 +226,7 @@ class HomeScene: SKScene {
         addChild(nameL)
 
         moodLabel = SKLabelNode(text: gm.state.sparky.mood.text)
-        moodLabel.fontName = "Courier"
+        moodLabel.fontName = "PingFangSC-Regular"
         moodLabel.fontSize = 10
         moodLabel.fontColor = UIColor(hex: "#C0C0E0")
         moodLabel.horizontalAlignmentMode = .left
@@ -241,7 +241,7 @@ class HomeScene: SKScene {
         addChild(coinIcon)
 
         coinsLabel = SKLabelNode(text: "\(gm.state.coins)")
-        coinsLabel.fontName = "Courier-Bold"
+        coinsLabel.fontName = "PingFangSC-Semibold"
         coinsLabel.fontSize = 10
         coinsLabel.fontColor = UIColor(hex: "#F8D030")
         coinsLabel.horizontalAlignmentMode = .left
@@ -259,7 +259,7 @@ class HomeScene: SKScene {
             let statusText = journey.isComplete ? "旅行完成！点击查看" :
                              "旅行中: \(journey.formattedTimeRemaining)"
             statusLabel = SKLabelNode(text: statusText)
-            statusLabel.fontName = "Courier"
+            statusLabel.fontName = "PingFangSC-Regular"
             statusLabel.fontSize = 9
             statusLabel.fontColor = journey.isComplete ? UIColor(hex: "#F8D030") : UIColor(hex: "#90D0F0")
             statusLabel.horizontalAlignmentMode = .right
@@ -273,7 +273,7 @@ class HomeScene: SKScene {
             addChild(emjL)
         } else {
             statusLabel = SKLabelNode(text: "在家休息中")
-            statusLabel.fontName = "Courier"
+            statusLabel.fontName = "PingFangSC-Regular"
             statusLabel.fontSize = 9
             statusLabel.fontColor = UIColor(hex: "#707090")
             statusLabel.horizontalAlignmentMode = .right
@@ -289,7 +289,7 @@ class HomeScene: SKScene {
 
         let btnW: CGFloat = size.width - 32
         let btnH: CGFloat = 48
-        let btnY = tabBarH + 84
+        let btnY = tabBarH + 108
 
         let bg = SKSpriteNode(texture: nearestTex("btn_yellow"),
                               size: CGSize(width: btnW, height: btnH))
@@ -299,7 +299,7 @@ class HomeScene: SKScene {
         addChild(bg)
 
         let lbl = SKLabelNode(text: "🎒  整理行囊，出发！")
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 14
         lbl.fontColor = UIColor(hex: "#1C1C1C")
         lbl.verticalAlignmentMode = .center
@@ -339,7 +339,7 @@ class HomeScene: SKScene {
         emj.name = name
         addChild(emj)
         let lbl = SKLabelNode(text: label)
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 9
         lbl.fontColor = active ? UIColor(hex: "#F8D030") : UIColor(hex: "#606080")
         lbl.position = CGPoint(x: x, y: 8)
@@ -391,7 +391,7 @@ class HomeScene: SKScene {
 
         // Title
         let title = SKLabelNode(text: "🎒 整理行囊")
-        title.fontName = "Courier-Bold"
+        title.fontName = "PingFangSC-Semibold"
         title.fontSize = 15
         title.fontColor = UIColor(hex: "#F8D030")
         title.position = CGPoint(x: 0, y: panelH/2 - 30)
@@ -399,7 +399,7 @@ class HomeScene: SKScene {
         panel.addChild(title)
 
         let sub = SKLabelNode(text: "最多携带 \(gm.state.packed.maxSlots) 件物品")
-        sub.fontName = "Courier"
+        sub.fontName = "PingFangSC-Regular"
         sub.fontSize = 10
         sub.fontColor = UIColor(hex: "#9090B8")
         sub.position = CGPoint(x: 0, y: panelH/2 - 52)
@@ -422,7 +422,7 @@ class HomeScene: SKScene {
 
         // Close X
         let closeBtn = SKLabelNode(text: "✕")
-        closeBtn.fontName = "Courier-Bold"
+        closeBtn.fontName = "PingFangSC-Semibold"
         closeBtn.fontSize = 16
         closeBtn.fontColor = UIColor(hex: "#707090")
         closeBtn.position = CGPoint(x: panelW/2 - 20, y: panelH/2 - 28)
@@ -467,7 +467,7 @@ class HomeScene: SKScene {
                 }
             } else {
                 let placeholder = SKLabelNode(text: "+")
-                placeholder.fontName = "Courier"
+                placeholder.fontName = "PingFangSC-Regular"
                 placeholder.fontSize = 20
                 placeholder.fontColor = UIColor(hex: "#3A3A60")
                 placeholder.verticalAlignmentMode = .center
@@ -507,7 +507,7 @@ class HomeScene: SKScene {
             panel.addChild(icon)
 
             let qty = SKLabelNode(text: "×\(gm.state.inventory[def.id])")
-            qty.fontName = "Courier"
+            qty.fontName = "PingFangSC-Regular"
             qty.fontSize = 8
             qty.fontColor = UIColor(hex: "#A0A0C0")
             qty.position = CGPoint(x: xOff, y: yOff - 20)
@@ -518,7 +518,7 @@ class HomeScene: SKScene {
 
         if allItems.isEmpty {
             let empty = SKLabelNode(text: "背包是空的...")
-            empty.fontName = "Courier"
+            empty.fontName = "PingFangSC-Regular"
             empty.fontSize = 11
             empty.fontColor = UIColor(hex: "#606080")
             empty.position = CGPoint(x: 0, y: startY - 20)
@@ -549,7 +549,7 @@ class HomeScene: SKScene {
         overlay.addChild(panel)
 
         let title = SKLabelNode(text: "✈️  选择目的地")
-        title.fontName = "Courier-Bold"
+        title.fontName = "PingFangSC-Semibold"
         title.fontSize = 14
         title.fontColor = UIColor(hex: "#F8D030")
         title.position = CGPoint(x: 0, y: panelH/2 - 30)
@@ -557,7 +557,7 @@ class HomeScene: SKScene {
         panel.addChild(title)
 
         let closeBtn = SKLabelNode(text: "✕")
-        closeBtn.fontName = "Courier-Bold"
+        closeBtn.fontName = "PingFangSC-Semibold"
         closeBtn.fontSize = 16
         closeBtn.fontColor = UIColor(hex: "#707090")
         closeBtn.position = CGPoint(x: panelW/2 - 20, y: panelH/2 - 28)
@@ -600,7 +600,7 @@ class HomeScene: SKScene {
         panel.addChild(emj)
 
         let nameL = SKLabelNode(text: loc.nameZH)
-        nameL.fontName = "Courier-Bold"
+        nameL.fontName = "PingFangSC-Semibold"
         nameL.fontSize = 13
         nameL.fontColor = .white
         nameL.horizontalAlignmentMode = .left
@@ -610,7 +610,7 @@ class HomeScene: SKScene {
         panel.addChild(nameL)
 
         let desc = SKLabelNode(text: loc.description)
-        desc.fontName = "Courier"
+        desc.fontName = "PingFangSC-Regular"
         desc.fontSize = 9
         desc.fontColor = UIColor(hex: "#9090B8")
         desc.horizontalAlignmentMode = .left
@@ -622,7 +622,7 @@ class HomeScene: SKScene {
         let mins = loc.durationMinutes < 60 ?
             "\(Int(loc.durationMinutes))分钟" : "\(Int(loc.durationMinutes/60))小时"
         let timeL = SKLabelNode(text: "⏱ \(mins)  💰\(loc.rewardCoins)")
-        timeL.fontName = "Courier"
+        timeL.fontName = "PingFangSC-Regular"
         timeL.fontSize = 9
         timeL.fontColor = UIColor(hex: "#F8D030")
         timeL.horizontalAlignmentMode = .right
@@ -759,7 +759,7 @@ class HomeScene: SKScene {
         bg.lineWidth = 2
         node.addChild(bg)
         let lbl = SKLabelNode(text: text)
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 13
         lbl.fontColor = .white
         lbl.verticalAlignmentMode = .center

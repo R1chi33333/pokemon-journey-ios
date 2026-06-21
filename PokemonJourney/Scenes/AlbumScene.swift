@@ -51,7 +51,7 @@ class AlbumScene: SKScene {
         addChild(bg)
 
         let title = SKLabelNode(text: "⚡ Sparky 的相册")
-        title.fontName = "Courier-Bold"
+        title.fontName = "PingFangSC-Semibold"
         title.fontSize = 15
         title.fontColor = UIColor(hex: "#F8D030")
         title.position = CGPoint(x: size.width/2, y: size.height - 30)
@@ -61,7 +61,7 @@ class AlbumScene: SKScene {
         let count = gm.state.postcards.count
         let journeys = gm.state.sparky.totalJourneys
         let sub = SKLabelNode(text: "\(count) 张明信片  ·  共旅行 \(journeys) 次")
-        sub.fontName = "Courier"
+        sub.fontName = "PingFangSC-Regular"
         sub.fontSize = 10
         sub.fontColor = UIColor(hex: "#808098")
         sub.position = CGPoint(x: size.width/2, y: size.height - 58)
@@ -101,7 +101,7 @@ class AlbumScene: SKScene {
         emj.name = name
         addChild(emj)
         let lbl = SKLabelNode(text: label)
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 9
         lbl.fontColor = active ? UIColor(hex: "#F8D030") : UIColor(hex: "#606080")
         lbl.position = CGPoint(x: x, y: 8)
@@ -202,7 +202,7 @@ class AlbumScene: SKScene {
 
         // LEFT side: Location name, message
         let nameL = SKLabelNode(text: loc?.nameZH ?? card.locationId)
-        nameL.fontName = "Courier-Bold"
+        nameL.fontName = "PingFangSC-Semibold"
         nameL.fontSize = 13
         nameL.fontColor = UIColor(hex: "#403820")
         nameL.horizontalAlignmentMode = .left
@@ -214,7 +214,7 @@ class AlbumScene: SKScene {
         let msgLines = card.message.components(separatedBy: "\n")
         for (li, line) in msgLines.prefix(2).enumerated() {
             let msgL = SKLabelNode(text: line)
-            msgL.fontName = "Courier"
+            msgL.fontName = "PingFangSC-Regular"
             msgL.fontSize = 9
             msgL.fontColor = UIColor(hex: "#706050")
             msgL.horizontalAlignmentMode = .left
@@ -227,7 +227,7 @@ class AlbumScene: SKScene {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy/MM/dd"
         let dateL = SKLabelNode(text: "📅 \(fmt.string(from: card.date))")
-        dateL.fontName = "Courier"
+        dateL.fontName = "PingFangSC-Regular"
         dateL.fontSize = 8
         dateL.fontColor = UIColor(hex: "#A09080")
         dateL.horizontalAlignmentMode = .left
@@ -245,7 +245,7 @@ class AlbumScene: SKScene {
 
         for (ri, part) in rewardParts.enumerated() {
             let rewL = SKLabelNode(text: part)
-            rewL.fontName = "Courier-Bold"
+            rewL.fontName = "PingFangSC-Semibold"
             rewL.fontSize = 10
             rewL.fontColor = UIColor(hex: "#806040")
             rewL.horizontalAlignmentMode = .right
@@ -288,7 +288,7 @@ class AlbumScene: SKScene {
             ("期待来自远方的回忆！",  86.0, "#707090"),
         ] {
             let lbl = SKLabelNode(text: text)
-            lbl.fontName = "Courier-Bold"
+            lbl.fontName = "PingFangSC-Semibold"
             lbl.fontSize = 12
             lbl.fontColor = UIColor(hex: col)
             lbl.position = CGPoint(x: size.width/2, y: contentY + dy)
@@ -364,7 +364,7 @@ class AlbumScene: SKScene {
         bg.name = name
         node.addChild(bg)
         let lbl = SKLabelNode(text: text)
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 12
         lbl.fontColor = .white
         lbl.verticalAlignmentMode = .center

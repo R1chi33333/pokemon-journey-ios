@@ -342,7 +342,7 @@ class JourneyScene: SKScene {
 
         // Location name
         let nameLbl = SKLabelNode(text: "\(location?.emoji ?? "🌟")  \(location?.nameZH ?? "旅行中")")
-        nameLbl.fontName = "Courier-Bold"
+        nameLbl.fontName = "PingFangSC-Semibold"
         nameLbl.fontSize = 16
         nameLbl.fontColor = UIColor(hex: "#003878")
         nameLbl.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH - 36)
@@ -351,7 +351,7 @@ class JourneyScene: SKScene {
 
         // Timer
         timerLabel = SKLabelNode(text: gm.state.journey?.formattedTimeRemaining ?? "--")
-        timerLabel.fontName = "Courier-Bold"
+        timerLabel.fontName = "PingFangSC-Semibold"
         timerLabel.fontSize = 22
         timerLabel.fontColor = UIColor(hex: "#003878")
         timerLabel.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH - 80)
@@ -382,7 +382,7 @@ class JourneyScene: SKScene {
         // Reward preview
         if let loc = location {
             let rewardLbl = SKLabelNode(text: "预计奖励: 💰~\(loc.rewardCoins)  🫐×2")
-            rewardLbl.fontName = "Courier"
+            rewardLbl.fontName = "PingFangSC-Regular"
             rewardLbl.fontSize = 10
             rewardLbl.fontColor = UIColor(hex: "#405070")
             rewardLbl.position = CGPoint(x: size.width/2, y: infoPanelY + infoPanelH - 152)
@@ -412,7 +412,7 @@ class JourneyScene: SKScene {
         addChild(box)
 
         let txt = SKLabelNode(text: "⚡ Sparky 还在家里哦")
-        txt.fontName = "Courier-Bold"
+        txt.fontName = "PingFangSC-Semibold"
         txt.fontSize = 13
         txt.fontColor = UIColor(hex: "#003878")
         txt.position = CGPoint(x: size.width/2, y: size.height/2 + 28)
@@ -420,7 +420,7 @@ class JourneyScene: SKScene {
         addChild(txt)
 
         let sub = SKLabelNode(text: "回主页整理行囊再出发！")
-        sub.fontName = "Courier"
+        sub.fontName = "PingFangSC-Regular"
         sub.fontSize = 11
         sub.fontColor = UIColor(hex: "#507090")
         sub.position = CGPoint(x: size.width/2, y: size.height/2)
@@ -467,7 +467,7 @@ class JourneyScene: SKScene {
         emj.name = name
         addChild(emj)
         let lbl = SKLabelNode(text: label)
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 9
         lbl.fontColor = active ? UIColor(hex: "#F8D030") : UIColor(hex: "#606080")
         lbl.position = CGPoint(x: x, y: 8)
@@ -503,7 +503,7 @@ class JourneyScene: SKScene {
 
         // Title
         let title = SKLabelNode(text: "⚡ Sparky 回来了！")
-        title.fontName = "Courier-Bold"
+        title.fontName = "PingFangSC-Semibold"
         title.fontSize = 16
         title.fontColor = UIColor(hex: "#403820")
         title.position = CGPoint(x: 0, y: panelH/2 - 36)
@@ -525,7 +525,7 @@ class JourneyScene: SKScene {
         let locEmoji = loc?.emoji ?? "🌟"
         let locName  = loc?.nameZH ?? "远方"
         let locLbl = SKLabelNode(text: "\(locEmoji) 来自 \(locName)")
-        locLbl.fontName = "Courier"
+        locLbl.fontName = "PingFangSC-Regular"
         locLbl.fontSize = 11
         locLbl.fontColor = UIColor(hex: "#706050")
         locLbl.position = CGPoint(x: 0, y: panelH/2 - 172)
@@ -543,7 +543,7 @@ class JourneyScene: SKScene {
             if rw.sitrus > 0 { parts.append("🍊×\(rw.sitrus)") }
             let rewardStr = parts.isEmpty ? "平安归来！" : parts.joined(separator: "  ")
             let rewLbl = SKLabelNode(text: rewardStr)
-            rewLbl.fontName = "Courier-Bold"
+            rewLbl.fontName = "PingFangSC-Semibold"
             rewLbl.fontSize = 12
             rewLbl.fontColor = UIColor(hex: "#805030")
             rewLbl.position = CGPoint(x: 0, y: panelH/2 - 200)
@@ -553,7 +553,7 @@ class JourneyScene: SKScene {
             if !card.message.isEmpty {
                 let msg = String(card.message.prefix(28))
                 let msgLbl = SKLabelNode(text: "\u{201C}\(msg)\u{201D}")
-                msgLbl.fontName = "Courier"
+                msgLbl.fontName = "PingFangSC-Regular"
                 msgLbl.fontSize = 9
                 msgLbl.fontColor = UIColor(hex: "#706050")
                 msgLbl.position = CGPoint(x: 0, y: panelH/2 - 222)
@@ -635,7 +635,7 @@ class JourneyScene: SKScene {
         bg.lineWidth = 2
         node.addChild(bg)
         let lbl = SKLabelNode(text: text)
-        lbl.fontName = "Courier-Bold"
+        lbl.fontName = "PingFangSC-Semibold"
         lbl.fontSize = 12
         lbl.fontColor = .white
         lbl.verticalAlignmentMode = .center
