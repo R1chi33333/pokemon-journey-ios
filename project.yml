@@ -1,0 +1,36 @@
+name: PokemonJourney
+options:
+  bundleIdPrefix: com.r1chi33333
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16.0"
+  groupSortPosition: top
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    SUPPORTS_MACCATALYST: NO
+    ENABLE_PREVIEWS: YES
+
+targets:
+  PokemonJourney:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: PokemonJourney
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.r1chi33333.pokemonjourney
+        INFOPLIST_FILE: PokemonJourney/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0.0
+        PRODUCT_NAME: PokemonJourney
+        UILaunchStoryboardName: ""
+        UIMainStoryboardFile: ""
